@@ -133,17 +133,6 @@ if _G.virtualtimer == nil then
     }
 end
 
-if _G.statusline_additions ~= nil then
-    _G.statusline_additions.virtualtimer = function(_)
-        local buf = vim.api.nvim_get_current_buf()
-        if _G.virtualtimer.timer_id_for_buf[buf] ~= nil then
-            return ""
-        else
-            return nil
-        end
-    end
-end
-
 local function cancel_timer(buf)
     if _G.virtualtimer.timer_id_for_buf[buf] ~= nil then
         vim.fn.timer_stop(_G.virtualtimer.timer_id_for_buf[buf])
