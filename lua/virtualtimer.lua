@@ -1,12 +1,20 @@
 
--- @timer(....10s)
--- @timer(....20s)
--- @timer(....20s)
--- @timer(1h2m30s)
+--
+-- EXAMPLES
+--
+-- Executing :VtParse should create timers on the following lines:
+--
+--     @timer(....10s)
+--     @timer(....20s)
+--     @timer(....20s)
+--     @timer(1h2m30s)
+--
+-- Start and stop with :VtStart and :VtStop respectively
+--
 
-local HL_CURRENT_TIMER = "VirtualTimerCurrentTimer"
+local HL_CURRENT_TIMER    = "VirtualTimerCurrentTimer"
 local HL_SUBSEQUENT_TIMER = "VirtualTimerSubsequentTimer"
-local HL_COMPLETED_TIMER = "VirtualTimerCompleted"
+local HL_COMPLETED_TIMER  = "VirtualTimerCompleted"
 
 local function set_highlights()
     vim.cmd("hi link " .. HL_CURRENT_TIMER    .. " MiniHipatternsHack")
@@ -29,6 +37,7 @@ end
 local function make_extmark_opts(opts)
     local result = {}
     -- result.virt_text_win_col = 80
+    result.virt_text_pos = "right_align"
     for k, v in pairs(opts) do
         result[k] = v
     end
@@ -98,35 +107,6 @@ vim.api.nvim_create_autocmd('ColorScheme', {
 })
 set_highlights()
 
-vim.api.nvim_create_user_command("VtClear", function(opts)
-    local ns = get_namespace()
-    local start_line, end_line = get_command_range(opts)
-
-    vim.api.nvim_buf_clear_namespace(0, ns, start_line, end_line)
-end, { range = true })
-
-vim.api.nvim_create_user_command("VtParse", function(opts)
-    local ns = get_namespace()
-    local start_line, end_line = get_command_range(opts)
-
-    vim.api.nvim_buf_clear_namespace(0, ns, start_line, end_line)
-
-    local lines = vim.api.nvim_buf_get_lines(0, start_line, end_line, false)
-
-    local match_index = 1
-    for i, line in ipairs(lines) do
-        local match = string.match(line, "@timer%(([0-9hms.]+)%)")
-        local markdown_completed_pattern = "^%s*[-*]%s%[[Xx]%]"
-        if match ~= nil and string.match(line, markdown_completed_pattern) == nil then
-            match_index = match_index + 1
-            local seconds = parse_duration(match)
-            vim.api.nvim_buf_set_extmark(0, ns, start_line + i - 1, 0, make_extmark_opts({
-                virt_text = { { "  " .. format_seconds(seconds) .. " ", HL_SUBSEQUENT_TIMER } }
-            }))
-        end
-    end
-end, { range = true })
-
 if _G.virtualtimer == nil then
     _G.virtualtimer = {
         timer_id_for_buf = {},
@@ -139,6 +119,47 @@ local function cancel_timer(buf)
         _G.virtualtimer.timer_id_for_buf[buf] = nil
     end
 end
+
+vim.api.nvim_create_user_command("VtClear", function(opts)
+    local buf = vim.api.nvim_get_current_buf()
+    local ns = get_namespace()
+    local start_line, end_line = get_command_range(opts)
+
+    if _G.virtualtimer.timer_id_for_buf[buf] ~= nil then
+        vim.notify("Stopping running timer")
+        cancel_timer(buf)
+    end
+
+    vim.api.nvim_buf_clear_namespace(0, ns, start_line, end_line)
+end, { range = true })
+
+vim.api.nvim_create_user_command("VtParse", function(opts)
+    local buf = vim.api.nvim_get_current_buf()
+    local ns = get_namespace()
+    local start_line, end_line = get_command_range(opts)
+
+    if _G.virtualtimer.timer_id_for_buf[buf] ~= nil then
+        vim.notify("Stopping running timer")
+        cancel_timer(buf)
+    end
+
+    vim.api.nvim_buf_clear_namespace(buf, ns, start_line, end_line)
+
+    local lines = vim.api.nvim_buf_get_lines(buf, start_line, end_line, false)
+
+    local match_index = 1
+    for i, line in ipairs(lines) do
+        local match = string.match(line, "@timer%(([0-9hms.]+)%)")
+        local markdown_completed_pattern = "^%s*[-*]%s%[[Xx]%]"
+        if match ~= nil and string.match(line, markdown_completed_pattern) == nil then
+            match_index = match_index + 1
+            local seconds = parse_duration(match)
+            vim.api.nvim_buf_set_extmark(buf, ns, start_line + i - 1, 0, make_extmark_opts({
+                virt_text = { { "  " .. format_seconds(seconds) .. " ", HL_SUBSEQUENT_TIMER } }
+            }))
+        end
+    end
+end, { range = true })
 
 vim.api.nvim_create_user_command("VtStart", function(opts)
     local buf = vim.api.nvim_get_current_buf()
